@@ -22,6 +22,25 @@ python3 -m beidou_vdb
 
 需要 Python 3 和 numpy。程序会读 `cases/` 里的两个 glTF，打印每种缺口的三件事：内部有没有填上、缺口有没有停在包围盒、壳外有没有渗漏。
 
+## 结果
+
+灰是建筑表面，绿是射线填进去的内部，橙是缺口上的包围盒辅助面。射线画到橙色体素就停。虚线格子是壳外，里面没有占用。轴测图剖掉近处的墙和半边屋顶，只为看见内部。
+
+缺底面。向下的射线停在底面，底面下面是空的。
+
+![缺底面：内部填满，射线停在包围盒底面](figures/missing-floor.png)
+
+缺 +X 侧墙。朝侧面的射线停在橙色辅助面上，没有进入右边的壳外。
+
+![缺侧墙：内部填满，射线停在包围盒侧面](figures/missing-wall.png)
+
+重新生成这两个图（需要 Pillow，不参与填充本身）：
+
+```bash
+python3 -m pip install pillow
+python3 -m beidou_vdb.viz
+```
+
 重新生成这两个 glTF：
 
 ```bash
