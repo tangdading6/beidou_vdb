@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>建筑占用体素：三步看懂</title>
+<style>
+  :root {
+    --ink: #1e1c19;
+    --muted: #5e584f;
+    --line: #d9d3c7;
+    --paper: #f3f0e8;
+    --card: #f7f4ee;
+    --surf: #cfc8bc;
+    --aux: #e3943a;
+    --inn: #3aaa96;
+    --ray: #f0c84a;
+    --out: #d5dee8;
+    --miss: #e15d58;
+    --hole: #fffefb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "WenQuanYi Micro Hei", "Droid Sans Fallback", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.45;
+  }
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 22px 40px;
+  }
+  .kicker {
+    margin: 0 0 6px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .lead {
+    margin: 0 0 18px;
+    max-width: 46em;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .stages {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+  }
+  .stages button {
+    appearance: none;
+    font: inherit;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .stages button.on {
+    background: var(--ink);
+    color: #f7f4ee;
+    border-color: var(--ink);
+  }
+  .stage-caption {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 650;
+  }
+  .step-caption {
+    margin: 4px 0 0;
+    font-size: 15px;
+  }
+  .note {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    min-height: 1.4em;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 14px 0;
+  }
+  .controls button {
+    appearance: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid #1e1c19;
+    border-radius: 8px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  .controls button:disabled {
+    opacity: 0.38;
+    cursor: default;
+  }
+  .controls button.primary {
+    background: var(--ink);
+    color: #f7f4ee;
+  }
+  .progress {
+    margin-left: 4px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .count {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .count b { font-weight: 650; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+  }
+  .legend li { display: flex; align-items: center; gap: 6px; }
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid rgba(30, 28, 25, 0.25);
+  }
+  .swatch.surf { background: var(--surf); }
+  .swatch.aux { background: var(--aux); }
+  .swatch.inn { background: var(--inn); }
+  .swatch.ray { background: var(--ray); }
+  .swatch.out { background: var(--out); }
+  .swatch.miss { background: var(--miss); }
+  .swatch.hole { background: var(--hole); border-style: dashed; }
+  .views {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 16px;
+  }
+  figure { margin: 0; }
+  figcaption {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  canvas {
+    width: 100%;
+    height: auto;
+    background: var(--card);
+    border-radius: 12px;
+    display: block;
+  }
+  @media (max-width: 880px) {
+    .views { grid-template-columns: 1fr; }
+    h1 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">占用体素 · 第一次看也能跟下来</p>
+  <h1>没有地面的房子，格子是怎么填满的</h1>
+  <p class="lead">体素就是边长 1 米的小方块。射线从表面方块出发，一次走进相邻的一格。这栋房子 6×5×5 米，底面是空的，盒子底面用来补这个缺口。</p>
+
+  <ol class="stages" id="stages">
+    <li><button type="button" data-stage="1">1 铺表面</button></li>
+    <li><button type="button" data-stage="2">2 向内填充</button></li>
+    <li><button type="button" data-stage="3">3 守恒检查</button></li>
+  </ol>
+  <p class="stage-caption" id="stageCaption" aria-live="polite"></p>
+  <p class="step-caption" id="stepCaption"></p>
+  <p class="note" id="note"></p>
+
+  <div class="controls">
+    <button type="button" id="play" class="primary">播放</button>
+    <button type="button" id="pause" disabled>暂停</button>
+    <button type="button" id="prev">上一步</button>
+    <button type="button" id="next">下一步</button>
+    <span class="progress" id="progress"></span>
+  </div>
+  <p class="count" id="count" hidden></p>
+
+  <ul class="legend">
+    <li><i class="swatch surf"></i>建筑表面</li>
+    <li><i class="swatch aux"></i>辅助面（缺的地面）</li>
+    <li><i class="swatch inn"></i>射线填入的内部</li>
+    <li><i class="swatch ray"></i>当前走到的格子</li>
+    <li><i class="swatch hole"></i>还空着的格子</li>
+    <li><i class="swatch out"></i>壳外（泛洪到达）</li>
+    <li><i class="swatch miss"></i>漏标空腔</li>
+  </ul>
+
+  <div class="views">
+    <figure>
+      <figcaption>轴测。靠近眼前的一面被剖开，只为看见内部；剖开处不是缺口。</figcaption>
+      <canvas id="iso" width="560" height="520"></canvas>
+    </figure>
+    <figure>
+      <figcaption>竖剖面 z = 2–3 米，正好切开空腔。空腔前后还有表面格子，这一刀把它们切开了。</figcaption>
+      <canvas id="slice" width="540" height="500"></canvas>
+    </figure>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  var NX = 6, NY = 5, NZ = 5;
+  var SLICE_Z = 2;
+  var KEY = function (x, y, z) { return x + "," + y + "," + z; };
+
+  var SHELL = {
+    "2,2,2": [1, 0, 0],
+    "4,2,2": [-1, 0, 0],
+    "3,3,2": [0, -1, 0],
+    "3,1,2": [0, 1, 0],
+    "3,2,1": [0, 0, 1],
+    "3,2,3": [0, 0, -1]
+  };
+
+  function inb(x, y, z) {
+    return x >= 0 && x < NX && y >= 0 && y < NY && z >= 0 && z < NZ;
+  }
+
+  function roleOf(x, y, z) {
+    if (!inb(x, y, z)) return "out";
+    if (x === 3 && y === 2 && z === SLICE_Z) return "cavity";
+    if (SHELL[KEY(x, y, z)]) return "shell";
+    if (y === NY - 1) return "roof";
+    if (x === 0 || x === NX - 1 || z === 0 || z === NZ - 1) return "wall";
+    if (y === 0) return "aux";
+    return "air";
+  }
+
+  function blocks(x, y, z) {
+    var r = roleOf(x, y, z);
+    return r === "shell" || r === "roof" || r === "wall" || r === "aux";
+  }
+
+  function normalOf(x, y, z) {
+    var s = SHELL[KEY(x, y, z)];
+    if (s) return s;
+    var r = roleOf(x, y, z);
+    if (r === "roof") return [0, 1, 0];
+    if (r === "wall") {
+      if (x === 0) return [-1, 0, 0];
+      if (x === NX - 1) return [1, 0, 0];
+      if (z === 0) return [0, 0, -1];
+      if (z === NZ - 1) return [0, 0, 1];
+    }
+    return null;
+  }
+
+  function trace(x, y, z) {
+    var n = normalOf(x, y, z);
+    if (!n) return null;
+    var cells = [];
+    var cx = x - n[0], cy = y - n[1], cz = z - n[2];
+    var guard = 0;
+    while (inb(cx, cy, cz) && guard++ < 32) {
+      if (blocks(cx, cy, cz)) {
+        cells.push({ x: cx, y: cy, z: cz, blocked: true });
+        break;
+      }
+      cells.push({ x: cx, y: cy, z: cz, blocked: false });
+      cx -= n[0];
+      cy -= n[1];
+      cz -= n[2];
+    }
+    return { origin: { x: x, y: y, z: z }, normal: n, cells: cells };
+  }
+
+  function buildModel() {
+    var interior = {};
+    var origins = [];
+    var x, y, z, t, i, c;
+    for (x = 0; x < NX; x++) {
+      for (y = 0; y < NY; y++) {
+        for (z = 0; z < NZ; z++) {
+          if (!normalOf(x, y, z)) continue;
+          t = trace(x, y, z);
+          origins.push(t);
+          for (i = 0; i < t.cells.length; i++) {
+            c = t.cells[i];
+            if (!c.blocked) interior[KEY(c.x, c.y, c.z)] = true;
+          }
+        }
+      }
+    }
+    var misses = [];
+    var interiorCount = 0;
+    for (x = 0; x < NX; x++) {
+      for (y = 0; y < NY; y++) {
+        for (z = 0; z < NZ; z++) {
+          var r = roleOf(x, y, z);
+          if (r === "air" || r === "cavity") {
+            if (interior[KEY(x, y, z)]) interiorCount++;
+            else misses.push({ x: x, y: y, z: z });
+          }
+        }
+      }
+    }
+    return {
+      interior: interior,
+      interiorCount: interiorCount,
+      misses: misses,
+      down: trace(1, 4, SLICE_Z),
+      side: trace(0, 2, SLICE_Z)
+    };
+  }
+
+  var STAGE_TEXT = {
+    1: "三角面铺到格子上，铺到的格子是表面。",
+    2: "沿法线反方向用 3D-DDA 向内走，直到下一张表面。",
+    3: "数内部格子，从盒外泛洪，剩下的空格是漏掉的空腔。"
+  };
+  var NOTE = {
+    1: "表面格子自己也算占用。辅助面只补缺口，不把整个盒子填满。",
+    2: "3D-DDA 按射线穿过的格子一格格走。法线沿着坐标轴时，一步就是相邻那一格。",
+    3: "泛洪只走空格。壳外走得到的不算内部；走不到、又没被射线标上的，是漏标。"
+  };
+
+  function makeFrames(model) {
+    var n = model.interiorCount;
+    var m = model.misses.length;
+    return [
+      { stage: 1, show: {}, step: "先把房子放进边长 1 米的格子。外框是包围盒。" },
+      { stage: 1, show: {}, mesh: true, step: "墙和屋顶是三角面。底面没有三角面。" },
+      { stage: 1, show: { roof: 1 }, step: "屋顶三角面铺到格子上，这些格子是表面。" },
+      { stage: 1, show: { roof: 1, wall: 1 }, step: "四面墙也铺成表面格子。" },
+      { stage: 1, show: { roof: 1, wall: 1, shell: 1 }, step: "里面封着一个小空腔，它的外壳也是表面。" },
+      { stage: 1, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, step: "缺的地面用包围盒底面补上，这张面叫辅助面。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "down", phase: "aim", step: "从屋顶这一格出发。外法线朝上，填充沿着反方向。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "down", phase: 0, step: "3D-DDA 走进正下方第一格。这一格是空的，标成内部。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "down", phase: 1, step: "下一格还是空的，继续标成内部。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "down", phase: 2, step: "再走一格，仍然是空的，标成内部。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "down", phase: "stop", step: "碰到辅助面就停下。中间这三格是射线填入的内部。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, ray: "side", phase: "stop", keepDown: true, step: "旁边这条射线碰到空腔外壳就停，没有走进空腔。" },
+      { stage: 2, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, filled: true, step: "其余表面格也沿反法线走完。被外壳挡住的那一格还是空的。" },
+      { stage: 3, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, filled: true, count: true, step: "守恒检查先数内部格子，一共 " + n + " 格。" },
+      { stage: 3, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, filled: true, count: true, flood: 1, step: "再从包围盒外面出发，只穿过空格往里泛洪。" },
+      { stage: 3, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, filled: true, count: true, flood: 2, step: "壳外都走到了。表面把泛洪挡在外面。" },
+      { stage: 3, show: { roof: 1, wall: 1, shell: 1, aux: 1 }, filled: true, count: true, flood: 2, miss: true, step: "这一格没被射线标过，泛洪也到不了，就是漏掉的空腔。漏标 " + m + " 格。" }
+    ];
+  }
+
+  function revealRay(path, phase, into) {
+    if (phase === "aim" || phase == null) return null;
+    var last = phase === "stop" ? path.length - 1 : phase;
+    var head = null;
+    var i;
+    for (i = 0; i <= last && i < path.length; i++) {
+      if (i === last) head = path[i];
+      else if (!path[i].blocked) into[KEY(path[i].x, path[i].y, path[i].z)] = true;
+    }
+    return head;
+  }
+
+  function viewState(frame, model) {
+    var filled = {};
+    var head = null;
+    var ray = null;
+    if (frame.filled) {
+      filled = model.interior;
+    } else {
+      if (frame.ray === "down" || frame.keepDown) {
+        head = revealRay(model.down.cells, frame.ray === "down" ? frame.phase : "stop", filled);
+        if (frame.ray === "down") ray = model.down;
+      }
+      if (frame.ray === "side") {
+        head = revealRay(model.side.cells, frame.phase, filled);
+        ray = model.side;
+      }
+    }
+    return { filled: filled, head: head, ray: ray };
+  }
+
+  function kindAt(x, y, z, frame, model, view) {
+    var k = KEY(x, y, z);
+    var r = roleOf(x, y, z);
+    if (!inb(x, y, z)) {
+      if (frame.flood && outsideReached(x, y, frame.flood)) return "out";
+      return "none";
+    }
+    if (view.head && view.head.x === x && view.head.y === y && view.head.z === z) {
+      if (view.head.blocked) return r === "aux" ? "auxhot" : "surfhot";
+      return "ray";
+    }
+    if (view.ray && view.ray.origin.x === x && view.ray.origin.y === y && view.ray.origin.z === z) {
+      return r === "aux" ? "auxhot" : "surfhot";
+    }
+    if (view.filled[k]) return "in";
+    if (r === "cavity" && frame.show.shell) return frame.miss ? "miss" : "hole";
+    if (r === "roof" && frame.show.roof) return "surf";
+    if (r === "wall" && frame.show.wall) return "surf";
+    if (r === "shell" && frame.show.shell) return "surf";
+    if (r === "aux" && frame.show.aux) return "aux";
+    if ((r === "air" || r === "cavity") && frame.show.shell) return "hole";
+    return "none";
+  }
+
+  function outsideReached(x, y, floodLevel) {
+    var outside = x < 0 || x >= NX || y < 0 || y >= NY;
+    if (!outside) return false;
+    if (floodLevel >= 2) return true;
+    return y < NY;
+  }
+
+  var PAL = {
+    surf: ["#e4ded4", "#cfc8bc", "#b7b0a3"],
+    aux: ["#f6c27a", "#e3943a", "#c97c2c"],
+    in: ["#8fd0c0", "#3aaa96", "#2b8c7c"],
+    ray: ["#ffe7a6", "#f0c84a", "#d7ad2e"],
+    miss: ["#f6b7b3", "#e15d58", "#c44742"],
+    hole: ["#fffefb", "#f4f1ea", "#e6e1d6"],
+    out: ["#f2f5f8", "#d5dee8", "#c3ced9"],
+    surfhot: ["#e4ded4", "#cfc8bc", "#b7b0a3"],
+    auxhot: ["#f6c27a", "#e3943a", "#c97c2c"]
+  };
+
+  var XW = 27, YW = 13.5, VH = 24;
+  var ISO_W = 560, ISO_H = 520;
+  var ox = 0, oy = 0;
+
+  function project(x, y, z) {
+    return [ox + (x - z) * XW, oy + (x + z) * YW - y * VH];
+  }
+
+  function fitIso() {
+    var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    var xs = [-0.4, NX + 0.3], ys = [0, NY], zs = [-0.3, NZ + 0.2];
+    var i, j, k, p;
+    for (i = 0; i < xs.length; i++) {
+      for (j = 0; j < ys.length; j++) {
+        for (k = 0; k < zs.length; k++) {
+          p = [(xs[i] - zs[k]) * XW, (xs[i] + zs[k]) * YW - ys[j] * VH];
+          if (p[0] < minX) minX = p[0];
+          if (p[1] < minY) minY = p[1];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] > maxY) maxY = p[1];
+        }
+      }
+    }
+    var padX = 36, padTop = 28, padBottom = 46;
+    var sx = (ISO_W - padX * 2) / (maxX - minX);
+    var sy = (ISO_H - padTop - padBottom) / (maxY - minY);
+    var s = Math.min(sx, sy);
+    XW *= s; YW *= s; VH *= s;
+    minX *= s; maxX *= s; minY *= s; maxY *= s;
+    ox = (ISO_W - (maxX - minX)) / 2 - minX;
+    oy = padTop - minY;
+  }
+
+  function poly(ctx, pts, fill, stroke, width, dash) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    if (stroke) {
+      ctx.setLineDash(dash || []);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width || 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function faceQuad(x, y, z, face) {
+    var P = project;
+    if (face === "top") return [P(x, y + 1, z), P(x + 1, y + 1, z), P(x + 1, y + 1, z + 1), P(x, y + 1, z + 1)];
+    if (face === "px") return [P(x + 1, y + 1, z), P(x + 1, y + 1, z + 1), P(x + 1, y, z + 1), P(x + 1, y, z)];
+    return [P(x, y + 1, z + 1), P(x + 1, y + 1, z + 1), P(x + 1, y, z + 1), P(x, y, z + 1)];
+  }
+
+  function drawVoxel(ctx, x, y, z, kind) {
+    var colors = PAL[kind] || PAL.surf;
+    var hot = kind === "surfhot" || kind === "auxhot" || kind === "ray" || kind === "miss";
+    var dash = kind === "hole" ? [3, 3] : null;
+    var edge = hot ? "#1e1c19" : "rgba(30,28,25,0.28)";
+    var width = hot ? 1.6 : 1;
+    poly(ctx, faceQuad(x, y, z, "pz"), colors[1], edge, width, dash);
+    poly(ctx, faceQuad(x, y, z, "px"), colors[2], edge, width, dash);
+    poly(ctx, faceQuad(x, y, z, "top"), colors[0], edge, width, dash);
+  }
+
+  function strokeLine(ctx, a, b, color, width, dash) {
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.setLineDash(dash || []);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawBoxEdges(ctx, x0, y0, z0, x1, y1, z1, color, width, dash) {
+    var corners = [];
+    var i, j, k;
+    for (i = 0; i < 2; i++) {
+      for (j = 0; j < 2; j++) {
+        for (k = 0; k < 2; k++) {
+          corners[i * 4 + j * 2 + k] = project(i ? x1 : x0, j ? y1 : y0, k ? z1 : z0);
+        }
+      }
+    }
+    var edges = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+    for (i = 0; i < edges.length; i++) {
+      strokeLine(ctx, corners[edges[i][0]], corners[edges[i][1]], color, width, dash);
+    }
+  }
+
+  function drawGrid(ctx) {
+    var x, z;
+    for (x = 0; x <= NX; x++) strokeLine(ctx, project(x, 0, 0), project(x, 0, NZ), "rgba(30,28,25,0.12)", 1);
+    for (z = 0; z <= NZ; z++) strokeLine(ctx, project(0, 0, z), project(NX, 0, z), "rgba(30,28,25,0.12)", 1);
+  }
+
+  function drawMesh(ctx) {
+    function quad(a, b, c, d, fill, stroke) {
+      poly(ctx, [project.apply(null, a), project.apply(null, b), project.apply(null, c)], fill, stroke, 1.2);
+      poly(ctx, [project.apply(null, a), project.apply(null, c), project.apply(null, d)], fill, stroke, 1.2);
+    }
+    var wall = "rgba(196,189,176,0.45)";
+    var edge = "#4d4942";
+    var Y = NY;
+    quad([0, 0, 0], [0, Y, 0], [NX, Y, 0], [NX, 0, 0], wall, edge);
+    quad([0, 0, 0], [0, Y, 0], [0, Y, NZ], [0, 0, NZ], wall, edge);
+    quad([NX, 0, NZ], [NX, Y, NZ], [NX, Y, 0], [NX, 0, 0], "rgba(196,189,176,0.18)", edge);
+    quad([NX, 0, NZ], [NX, Y, NZ], [0, Y, NZ], [0, 0, NZ], null, edge);
+    quad([0, Y, 0], [NX, Y, 0], [NX, Y, NZ], [0, Y, NZ], "rgba(196,189,176,0.28)", edge);
+    var inner = "rgba(180,120,96,0.28)";
+    var iedge = "#7a4e3c";
+    quad([3, 2, 2], [4, 2, 2], [4, 3, 2], [3, 3, 2], inner, iedge);
+    quad([3, 2, 3], [4, 2, 3], [4, 3, 3], [3, 3, 3], inner, iedge);
+    quad([3, 2, 2], [3, 3, 2], [3, 3, 3], [3, 2, 3], inner, iedge);
+    quad([4, 2, 2], [4, 2, 3], [4, 3, 3], [4, 3, 2], inner, iedge);
+    quad([3, 3, 2], [4, 3, 2], [4, 3, 3], [3, 3, 3], inner, iedge);
+    quad([3, 2, 2], [3, 2, 3], [4, 2, 3], [4, 2, 2], inner, iedge);
+    var p = project(NX * 0.55, 0, NZ * 0.72);
+    ctx.fillStyle = "#1e1c19";
+    ctx.font = "14px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("没有地面", p[0], p[1]);
+  }
+
+  function arrow2d(ctx, x0, y0, x1, y1, color) {
+    var ang = Math.atan2(y1 - y0, x1 - x0);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    var ah = 8;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ah * Math.cos(ang - 0.45), y1 - ah * Math.sin(ang - 0.45));
+    ctx.lineTo(x1 - ah * Math.cos(ang + 0.45), y1 - ah * Math.sin(ang + 0.45));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawRayIso(ctx, ray, head) {
+    if (!ray) return;
+    var pts = [ray.origin];
+    var i;
+    for (i = 0; i < ray.cells.length; i++) {
+      pts.push(ray.cells[i]);
+      if (head && ray.cells[i] === head) break;
+      if (!head) break;
+    }
+    if (!head) {
+      var n = ray.normal;
+      var a = project(ray.origin.x + 0.5, ray.origin.y + 0.5, ray.origin.z + 0.5);
+      var b = project(ray.origin.x + 0.5 - n[0] * 0.7, ray.origin.y + 0.5 - n[1] * 0.7, ray.origin.z + 0.5 - n[2] * 0.7);
+      var c = project(ray.origin.x + 0.5 + n[0] * 0.85, ray.origin.y + 0.5 + n[1] * 0.85, ray.origin.z + 0.5 + n[2] * 0.85);
+      arrow2d(ctx, a[0], a[1], c[0], c[1], "#1e1c19");
+      arrow2d(ctx, a[0], a[1], b[0], b[1], "#1e1c19");
+      return;
+    }
+    ctx.beginPath();
+    for (i = 0; i < pts.length; i++) {
+      var p = project(pts[i].x + 0.5, pts[i].y + 0.5, pts[i].z + 0.5);
+      if (i === 0) ctx.moveTo(p[0], p[1]);
+      else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.strokeStyle = "#1e1c19";
+    ctx.lineWidth = 1.7;
+    ctx.stroke();
+    var last = pts[pts.length - 1];
+    var hp = project(last.x + 0.5, last.y + 0.5, last.z + 0.5);
+    var prev = pts[pts.length - 2] || pts[0];
+    var pp = project(prev.x + 0.5, prev.y + 0.5, prev.z + 0.5);
+    arrow2d(ctx, pp[0], pp[1], hp[0], hp[1], "#1e1c19");
+  }
+
+  function drawAxis(ctx) {
+    var o = [46, ISO_H - 34];
+    function tip(dx, dy, name) {
+      arrow2d(ctx, o[0], o[1], o[0] + dx, o[1] + dy, "#1e1c19");
+      ctx.fillStyle = "#1e1c19";
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(name, o[0] + dx + (dx < 0 ? -14 : 4), o[1] + dy + (dy < 0 ? -2 : 8));
+    }
+    tip(26, 12, "x");
+    tip(-22, 12, "z");
+    tip(0, -26, "y");
+  }
+
+  function drawFloodGround(ctx, level) {
+    var x, z;
+    if (!level) return;
+    for (x = -1; x <= NX; x++) {
+      for (z = -1; z <= SLICE_Z; z++) {
+        if (x >= 0 && x < NX && z >= 0 && z < NZ) continue;
+        poly(ctx, faceQuad(x, -1, z, "top"), "rgba(213,222,232,0.95)", "rgba(30,28,25,0.15)", 1);
+      }
+    }
+  }
+
+  function renderIso(ctx, frame, model, view) {
+    ctx.clearRect(0, 0, ISO_W, ISO_H);
+    drawGrid(ctx);
+    drawBoxEdges(ctx, 0, 0, 0, NX, NY, NZ, "rgba(30,28,25,0.45)", 1.2);
+    drawBoxEdges(ctx, 0, 0, SLICE_Z + 1, NX, NY, NZ, "rgba(30,28,25,0.28)", 1, [4, 4]);
+    if (frame.flood) drawFloodGround(ctx, frame.flood);
+    if (frame.mesh) {
+      drawMesh(ctx);
+      drawAxis(ctx);
+      return;
+    }
+    var cells = [];
+    var x, y, z, kind;
+    for (x = 0; x < NX; x++) {
+      for (y = 0; y < NY; y++) {
+        for (z = 0; z <= SLICE_Z; z++) {
+          kind = kindAt(x, y, z, frame, model, view);
+          if (kind === "none") continue;
+          if (kind === "hole" && !frame.filled && !(x === 3 && y === 2 && z === SLICE_Z)) continue;
+          cells.push({ x: x, y: y, z: z, kind: kind, key: (x + z) * 100 + y });
+        }
+      }
+    }
+    cells.sort(function (a, b) { return a.key - b.key; });
+    for (var i = 0; i < cells.length; i++) drawVoxel(ctx, cells[i].x, cells[i].y, cells[i].z, cells[i].kind);
+    drawRayIso(ctx, view.ray, view.head);
+    if (frame.miss) {
+      var lp = project(3.5, 2.55, 2.2);
+      ctx.font = "13px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#1e1c19";
+      ctx.fillText("漏标", lp[0], lp[1]);
+    }
+    ctx.font = "13px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+    ctx.fillStyle = "#5e584f";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("6 × 5 × 5 米", ISO_W - 16, 22);
+    drawAxis(ctx);
+  }
+
+  var CELL = 52, GAP = 4, PITCH = 56;
+  var SL_W = 540, SL_H = 500;
+  var PADL = 42, PADT = 36;
+
+  function cellBox(x, y) {
+    var col = x + 1;
+    var row = NY - y;
+    return {
+      x: PADL + col * PITCH,
+      y: PADT + row * PITCH,
+      w: CELL,
+      h: CELL
+    };
+  }
+
+  function flatColor(kind) {
+    if (kind === "surf" || kind === "surfhot") return "#cfc8bc";
+    if (kind === "aux" || kind === "auxhot") return "#e3943a";
+    if (kind === "in") return "#3aaa96";
+    if (kind === "ray") return "#f0c84a";
+    if (kind === "miss") return "#e15d58";
+    if (kind === "out") return "#d5dee8";
+    if (kind === "hole") return "#fffefb";
+    return null;
+  }
+
+  function drawSlice(ctx, frame, model, view) {
+    ctx.clearRect(0, 0, SL_W, SL_H);
+    var x, y, box, kind, hot;
+    for (x = -1; x <= NX; x++) {
+      for (y = -1; y <= NY; y++) {
+        if (x >= 0 && x < NX && y >= 0 && y < NY) {
+          kind = kindAt(x, y, SLICE_Z, frame, model, view);
+        } else if (frame.flood && outsideReached(x, y, frame.flood)) {
+          kind = "out";
+        } else {
+          continue;
+        }
+        box = cellBox(x, y);
+        if (kind === "none") {
+          ctx.strokeStyle = "rgba(30,28,25,0.1)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+          continue;
+        }
+        if (kind === "hole" && !frame.show.shell) continue;
+        hot = kind === "surfhot" || kind === "auxhot" || kind === "ray" || kind === "miss";
+        ctx.fillStyle = flatColor(kind);
+        ctx.fillRect(box.x, box.y, box.w, box.h);
+        ctx.setLineDash(kind === "hole" ? [3, 3] : []);
+        ctx.strokeStyle = hot ? "#1e1c19" : "rgba(30,28,25,0.2)";
+        ctx.lineWidth = hot ? 2 : 1;
+        ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.fillStyle = "#5e584f";
+    ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (x = 0; x < NX; x++) {
+      box = cellBox(x, 0);
+      ctx.fillText(String(x), box.x + CELL / 2, box.y + CELL + 6);
+    }
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (y = 0; y < NY; y++) {
+      box = cellBox(0, y);
+      ctx.fillText(String(y), box.x - 8, box.y + CELL / 2);
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("y ↑", 8, PADT + 12);
+    var xb = cellBox(NX - 1, 0);
+    ctx.textAlign = "left";
+    ctx.fillText("x →", xb.x + CELL + 10, xb.y + CELL + 8);
+    ctx.textAlign = "left";
+    ctx.fillText("1 米", PADL, SL_H - 14);
+
+    if (view.ray && view.ray.origin.z === SLICE_Z) drawSliceRay(ctx, view.ray, view.head, frame);
+    if (frame.show.shell && !frame.miss) {
+      box = cellBox(3, 2);
+      if (kindAt(3, 2, SLICE_Z, frame, model, view) === "hole") {
+        ctx.fillStyle = "#8a847a";
+        ctx.font = "13px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("空", box.x + CELL / 2, box.y + CELL / 2);
+      }
+    }
+    if (frame.miss) {
+      box = cellBox(3, 2);
+      ctx.fillStyle = "#fff";
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("漏标", box.x + CELL / 2, box.y + CELL / 2);
+    }
+    if (frame.flood) {
+      ctx.fillStyle = "#5e584f";
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      box = cellBox(NX, 2);
+      if (frame.flood >= 1) ctx.fillText("壳外", box.x + CELL / 2, box.y + CELL / 2);
+    }
+  }
+
+  function drawSliceRay(ctx, ray, head, frame) {
+    var cells = [ray.origin];
+    var i;
+    if (head) {
+      for (i = 0; i < ray.cells.length; i++) {
+        cells.push(ray.cells[i]);
+        if (ray.cells[i] === head) break;
+      }
+    }
+    function center(c, dx) {
+      var b = cellBox(c.x, c.y);
+      return [b.x + CELL / 2 + (dx || 0), b.y + CELL / 2];
+    }
+    var along = ray.normal[1] !== 0 ? -16 : 0;
+    if (!head) {
+      var o = center(ray.origin);
+      var n = ray.normal;
+      arrow2d(ctx, o[0], o[1], o[0] + n[0] * 34, o[1] - n[1] * 34, "#1e1c19");
+      arrow2d(ctx, o[0], o[1], o[0] - n[0] * 22, o[1] + n[1] * 22, "#1e1c19");
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.fillStyle = "#1e1c19";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("外法线", o[0] + 8, o[1] - 28);
+      ctx.textBaseline = "top";
+      ctx.fillText("反方向", o[0] + 8, o[1] + 8);
+      return;
+    }
+    var a = center(cells[0], along);
+    var b = center(cells[cells.length - 1], along);
+    arrow2d(ctx, a[0], a[1], b[0], b[1], "#1e1c19");
+    if (frame.ray === "down") {
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      var shown = frame.phase === "stop" ? ray.cells.length - 1 : (frame.phase + 1);
+      for (i = 0; i < shown && i < ray.cells.length; i++) {
+        if (ray.cells[i].blocked) continue;
+        var p = center(ray.cells[i]);
+        ctx.fillStyle = "#1e1c19";
+        ctx.fillText(String(i + 1), p[0], p[1]);
+      }
+      if (frame.phase === "stop") {
+        var h = center(head);
+        ctx.textAlign = "left";
+        ctx.fillText("停", h[0] + 16, h[1]);
+      }
+    }
+    if (frame.ray === "side" && head) {
+      var h2 = center(head);
+      ctx.font = "12px \"WenQuanYi Micro Hei\", \"Droid Sans Fallback\", sans-serif";
+      ctx.fillStyle = "#1e1c19";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("停", h2[0], h2[1] - 8);
+    }
+  }
+
+  var model = buildModel();
+  var frames = makeFrames(model);
+  var index = 0;
+  var timer = null;
+  fitIso();
+
+  var isoCanvas = document.getElementById("iso");
+  var sliceCanvas = document.getElementById("slice");
+  var isoCtx = isoCanvas.getContext("2d");
+  var sliceCtx = sliceCanvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  [isoCanvas, sliceCanvas].forEach(function (c) {
+    var w = c.width, h = c.height;
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+    c.style.width = "100%";
+    c.style.height = "auto";
+  });
+  isoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sliceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  var elStage = document.getElementById("stageCaption");
+  var elStep = document.getElementById("stepCaption");
+  var elNote = document.getElementById("note");
+  var elProg = document.getElementById("progress");
+  var elCount = document.getElementById("count");
+  var btnPlay = document.getElementById("play");
+  var btnPause = document.getElementById("pause");
+  var btnPrev = document.getElementById("prev");
+  var btnNext = document.getElementById("next");
+
+  function render() {
+    var frame = frames[index];
+    var view = viewState(frame, model);
+    renderIso(isoCtx, frame, model, view);
+    drawSlice(sliceCtx, frame, model, view);
+    elStage.textContent = STAGE_TEXT[frame.stage];
+    elStep.textContent = frame.step;
+    elNote.textContent = NOTE[frame.stage];
+    elProg.textContent = "第 " + (index + 1) + " / " + frames.length + " 步";
+    var buttons = document.querySelectorAll("#stages button");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].className = Number(buttons[i].getAttribute("data-stage")) === frame.stage ? "on" : "";
+    }
+    if (frame.count) {
+      elCount.hidden = false;
+      elCount.innerHTML = "<b>内部 " + model.interiorCount + " 格</b>" +
+        (frame.miss ? " · <b>漏标 " + model.misses.length + " 格</b>" : "");
+    } else {
+      elCount.hidden = true;
+    }
+    btnPrev.disabled = index === 0;
+    btnNext.disabled = index === frames.length - 1;
+  }
+
+  function pause() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    btnPlay.disabled = false;
+    btnPause.disabled = true;
+    btnPlay.className = "primary";
+  }
+
+  function go(n) {
+    index = Math.max(0, Math.min(frames.length - 1, n));
+    render();
+  }
+
+  function play() {
+    if (index >= frames.length - 1) go(0);
+    pause();
+    btnPlay.disabled = true;
+    btnPause.disabled = false;
+    btnPlay.className = "";
+    btnPause.className = "primary";
+    timer = setInterval(function () {
+      if (index >= frames.length - 1) {
+        pause();
+        return;
+      }
+      go(index + 1);
+    }, 1300);
+  }
+
+  btnPlay.addEventListener("click", play);
+  btnPause.addEventListener("click", pause);
+  btnNext.addEventListener("click", function () { pause(); go(index + 1); });
+  btnPrev.addEventListener("click", function () { pause(); go(index - 1); });
+  document.getElementById("stages").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    var stage = Number(b.getAttribute("data-stage"));
+    pause();
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].stage === stage) {
+        go(i);
+        return;
+      }
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.target && ev.target.tagName === "INPUT") return;
+    if (ev.code === "Space") {
+      ev.preventDefault();
+      if (timer) pause();
+      else play();
+    } else if (ev.code === "ArrowRight") {
+      pause();
+      go(index + 1);
+    } else if (ev.code === "ArrowLeft") {
+      pause();
+      go(index - 1);
+    }
+  });
+
+  var hash = /^#(\d+)$/.exec(location.hash);
+  if (hash) index = Math.max(0, Math.min(frames.length - 1, Number(hash[1])));
+  render();
+
+})();
+</script>
+</body>
+</html>
