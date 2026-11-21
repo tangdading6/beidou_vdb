@@ -34,6 +34,8 @@ python3 -m beidou_vdb
 
 ![缺侧墙：内部填满，射线停在包围盒侧面](figures/missing-wall.png)
 
+逐步看填充过程：用浏览器打开 `figures/occupancy-algorithm.html`。它不依赖安装，用一栋缺地面的小房子演示铺表面、沿外法线反方向逐格填充，以及从包围盒外泛洪找出漏掉的空腔。
+
 重新生成这两个图（需要 Pillow，不参与填充本身）：
 
 ```bash
