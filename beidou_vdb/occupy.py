@@ -8,9 +8,12 @@ Rules, followed as written:
 2. From each building surface voxel, step one cell at a time opposite the
    outward normal.
 3. Stop at the next surface (building or auxiliary). Voxels strictly between
-   the start and the hit are occupied. Surface voxels themselves are occupied.
-4. Rays start only from building surfaces. The box is not painted solid; it
-   only supplies the missing face.
+   the start and the hit are occupied only when the hit is a clear back face:
+   the most aligned outward normal follows the ray with dot product above
+   0.5, and no stored normal faces the ray. Any front-facing normal stops
+   the ray and leaves the span empty. A pure auxiliary hit does the same,
+   including a hit on the bounding box from inside.
+4. Rays start only from building surfaces. The box is only a stop line.
 """
 
 from __future__ import annotations
@@ -71,14 +74,21 @@ def fill_occupancy(
     building_surface = set(building_normals)
     auxiliary_surface = set(auxiliary_normals)
     surface = building_surface | auxiliary_surface
-    occupied = set(surface)
+    auxiliary_only = auxiliary_surface - building_surface
+    occupied = set(building_surface)
     marches: list[dict] = []
 
     for ijk, normal_list in building_normals.items():
         for normal in normal_list:
             march = _march(ijk, -normal, dims, surface)
             marches.append(march)
-            occupied.update(march["between"])
+            hit = march["hit"]
+            if (
+                hit is not None
+                and hit not in auxiliary_only
+                and _is_back_face(hit, march["direction"], building_normals)
+            ):
+                occupied.update(march["between"])
 
     return FillResult(
         origin=origin,
@@ -157,6 +167,23 @@ def _auxiliary_faces(aabb_min, aabb_max):
         faces.append((np.stack([a, b, c]), normal))
         faces.append((np.stack([a, c, d]), normal))
     return faces
+
+
+def _is_back_face(hit, direction, building_normals) -> bool:
+    """True when the ray meets the inward side of a building surface.
+
+    The most aligned stored normal must point with the ray, with a dot
+    product above 0.5. A normal that faces the ray (negative dot) is the
+    front face, so the span is left empty.
+    """
+    normals = building_normals.get(hit)
+    if not normals:
+        return False
+    direction = np.asarray(direction, dtype=np.float64)
+    dots = [float(np.dot(direction, normal)) for normal in normals]
+    if any(dot < -1e-6 for dot in dots):
+        return False
+    return max(dots) > 0.5
 
 
 def _march(start, direction, dims, surface) -> dict:
