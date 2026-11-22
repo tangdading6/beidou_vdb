@@ -135,6 +135,7 @@ struct Grid {
     std::vector<std::uint8_t> occupied;
     std::unordered_map<int, std::vector<std::array<double, 3>>> normals;
     std::vector<int> surface;
+    std::vector<int> component;
 
     int index(int i, int j, int k) const { return (i * dims[1] + j) * dims[2] + k; }
 };
@@ -228,6 +229,35 @@ Kind surface_kind(const Grid& grid, int slot, const double direction[3]) {
     return Kind::Skip;
 }
 
+void label_surface_components(Grid& grid) {
+    grid.component.assign(grid.kind.size(), -1);
+    std::vector<int> stack;
+    int next_id = 0;
+    for (int slot : grid.surface) {
+        if ((grid.kind[slot] & kBuilding) == 0 || grid.component[slot] >= 0) continue;
+        const int id = next_id++;
+        stack.clear();
+        stack.push_back(slot);
+        grid.component[slot] = id;
+        for (size_t cursor = 0; cursor < stack.size(); ++cursor) {
+            int i, j, k;
+            decode(grid.dims, stack[cursor], i, j, k);
+            const int next[6][3] = {{i + 1, j, k}, {i - 1, j, k}, {i, j + 1, k},
+                                     {i, j - 1, k}, {i, j, k + 1}, {i, j, k - 1}};
+            for (const auto& cell : next) {
+                if (cell[0] < 0 || cell[1] < 0 || cell[2] < 0 || cell[0] >= grid.dims[0] ||
+                    cell[1] >= grid.dims[1] || cell[2] >= grid.dims[2]) {
+                    continue;
+                }
+                const int neighbor = grid.index(cell[0], cell[1], cell[2]);
+                if ((grid.kind[neighbor] & kBuilding) == 0 || grid.component[neighbor] >= 0) continue;
+                grid.component[neighbor] = id;
+                stack.push_back(neighbor);
+            }
+        }
+    }
+}
+
 void scan_direction(Grid& grid, const std::vector<int>& ordered, int axis, int sign, int key_a, int key_b,
                     bool record_marches, std::vector<March>& marches) {
     double direction[3] = {0, 0, 0};
@@ -236,6 +266,7 @@ void scan_direction(Grid& grid, const std::vector<int>& ordered, int axis, int s
     if (sign < 0) std::reverse(positions.begin(), positions.end());
     bool seeking = false;
     int outer = 0;
+    int outer_component = -1;
     for (int pos : positions) {
         int cell[3];
         line_cell(axis, key_a, key_b, pos, cell);
@@ -245,7 +276,13 @@ void scan_direction(Grid& grid, const std::vector<int>& ordered, int axis, int s
             if (kind == Kind::Front) {
                 seeking = true;
                 outer = pos;
+                outer_component = grid.component[slot];
             }
+            continue;
+        }
+        // The closing face belongs to another building. The air between them is outside.
+        if (kind == Kind::Back && grid.component[slot] != outer_component) {
+            seeking = false;
             continue;
         }
         if (kind == Kind::Back || kind == Kind::Aux) {
@@ -271,6 +308,7 @@ void scan_direction(Grid& grid, const std::vector<int>& ordered, int axis, int s
             if (record_marches) marches.push_back(std::move(march));
             seeking = false;
         } else if (kind == Kind::Front) {
+            if (grid.component[slot] != outer_component) outer_component = grid.component[slot];
             outer = pos;
         }
     }
@@ -369,6 +407,12 @@ FillResult fill_occupancy(const std::vector<Triangle>& triangles, double voxel_s
     result.raster_seconds = building_raster_seconds + aux_raster_seconds;
     std::cout << "STAGE 表面格扫描 " << result.raster_seconds << "s\n" << std::flush;
 
+    const auto component_start = std::chrono::steady_clock::now();
+    label_surface_components(grid);
+    const double component_seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - component_start).count();
+    std::cout << "STAGE 表面连通 " << component_seconds << "s\n" << std::flush;
+
     const auto scan_start = std::chrono::steady_clock::now();
     for (int axis = 0; axis < 3; ++axis) {
         const auto axis_start = std::chrono::steady_clock::now();
@@ -405,7 +449,8 @@ FillResult fill_occupancy(const std::vector<Triangle>& triangles, double voxel_s
         const char name = static_cast<char>('x' + axis);
         std::cout << "STAGE 扫描线 " << name << " " << result.axis_seconds[axis] << "s\n" << std::flush;
     }
-    result.scan_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - scan_start).count();
+    result.scan_seconds = component_seconds +
+                          std::chrono::duration<double>(std::chrono::steady_clock::now() - scan_start).count();
     std::cout << "STAGE 扫描线填充 " << result.scan_seconds << "s\n" << std::flush;
 
     result.double_sided = count_double_sided(grid);
