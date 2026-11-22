@@ -50,7 +50,9 @@ def _report(case, path, triangles, normals, result) -> str:
         for j in range(result.dims[1])
         for k in range(result.dims[2])
     }
-    holes = sorted(grid - result.occupied)
+    aux_only = result.auxiliary_only()
+    # Pure auxiliary cells are stop lines, not holes and not occupancy.
+    holes = sorted((grid - result.occupied) - aux_only)
     outside = sorted(v for v in result.occupied if v not in grid)
     leak_centers = 0
     for ijk in result.occupied:
@@ -59,7 +61,6 @@ def _report(case, path, triangles, normals, result) -> str:
             leak_centers += 1
     escapes = [m for m in result.marches if m["escaped"]]
     between = {tuple(v) for m in result.marches for v in m["between"]}
-    aux_only = result.auxiliary_only()
     axis = case["axis"]
     side = case["side"]
     bound = 0 if side < 0 else result.dims[axis] - 1
