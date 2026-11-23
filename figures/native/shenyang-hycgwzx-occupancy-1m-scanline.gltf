@@ -1,0 +1,28 @@
+{
+  "asset": {"version": "2.0", "generator": "beidou_vdb native scanline"},
+  "extensionsUsed": ["EXT_mesh_gpu_instancing"],
+  "extensionsRequired": ["EXT_mesh_gpu_instancing"],
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [
+    {"name": "occupied", "mesh": 0, "extensions": {"EXT_mesh_gpu_instancing": {"attributes": {"TRANSLATION": 2}}}}
+  ],
+  "materials": [
+    {"name": "occupied", "doubleSided": true, "pbrMetallicRoughness": {"baseColorFactor": [0.200000003, 0.529999971, 0.460000008, 1], "metallicFactor": 0.0, "roughnessFactor": 1.0}}
+  ],
+  "meshes": [
+    {"name": "occupied", "primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4}]}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 8, "type": "VEC3", "min": [0, 0, 0], "max": [1, 1, 1]},
+    {"bufferView": 1, "componentType": 5123, "count": 36, "type": "SCALAR"},
+    {"bufferView": 2, "componentType": 5126, "count": 1199174, "type": "VEC3", "min": [-109, -1, -78], "max": [110, 105, 72]}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 96, "target": 34962},
+    {"buffer": 0, "byteOffset": 96, "byteLength": 72, "target": 34963},
+    {"buffer": 0, "byteOffset": 168, "byteLength": 14390088, "target": 34962}
+  ],
+  "buffers": [{"uri": "shenyang-hycgwzx-occupancy-1m-scanline.bin", "byteLength": 14390256}],
+  "extras": {"source": "3dbuilding_ln_sy_hn_gwzx_hycgwzx.gltf", "voxel_size_m": 1.0, "occupied": 1199174, "building_surface": 171420, "double_sided": 5340, "interior": 1027754, "representation": "instanced 1 m cubes, one material"}
+}

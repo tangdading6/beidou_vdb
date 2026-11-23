@@ -1,0 +1,28 @@
+{
+  "asset": {"version": "2.0", "generator": "beidou_vdb native scanline"},
+  "extensionsUsed": ["EXT_mesh_gpu_instancing"],
+  "extensionsRequired": ["EXT_mesh_gpu_instancing"],
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [
+    {"name": "occupied", "mesh": 0, "extensions": {"EXT_mesh_gpu_instancing": {"attributes": {"TRANSLATION": 2}}}}
+  ],
+  "materials": [
+    {"name": "occupied", "doubleSided": true, "pbrMetallicRoughness": {"baseColorFactor": [0.200000003, 0.529999971, 0.460000008, 1], "metallicFactor": 0.0, "roughnessFactor": 1.0}}
+  ],
+  "meshes": [
+    {"name": "occupied", "primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4}]}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 8, "type": "VEC3", "min": [0, 0, 0], "max": [1, 1, 1]},
+    {"bufferView": 1, "componentType": 5123, "count": 36, "type": "SCALAR"},
+    {"bufferView": 2, "componentType": 5126, "count": 50216, "type": "VEC3", "min": [-2829, 14, -1571], "max": [-2224, 31, -65]}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 96, "target": 34962},
+    {"buffer": 0, "byteOffset": 96, "byteLength": 72, "target": 34963},
+    {"buffer": 0, "byteOffset": 168, "byteLength": 602592, "target": 34962}
+  ],
+  "buffers": [{"uri": "557544328-occupancy-1m.bin", "byteLength": 602760}],
+  "extras": {"source": "557544328.glb", "voxel_size_m": 1.0, "occupied": 50216, "building_surface": 19627, "double_sided": 1828, "interior": 30589, "representation": "instanced 1 m cubes, one material"}
+}

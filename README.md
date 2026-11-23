@@ -16,11 +16,11 @@
 在仓库根目录：
 
 ```bash
-python3 -m pip install -r requirements.txt
-python3 -m beidou_vdb
+make
+./build/scanfill
 ```
 
-需要 Python 3 和 numpy。程序会读 `cases/` 里的两个 glTF，打印每种缺口的三件事：内部有没有填上、缺口有没有停在包围盒、壳外有没有渗漏。
+这是纯 C++ 程序，不依赖 Python。它先检查两个壳体，再对沈阳楼做扫描线填充，并打印表面体素、占用体素、双面墙、总时间和通过或失败。沈阳楼路径可以跟在命令后面。
 
 ## 结果
 
@@ -28,23 +28,10 @@ python3 -m beidou_vdb
 
 缺底面。向下的射线停在底面，底面下面是空的。
 
-![缺底面：内部填满，射线停在包围盒底面](figures/missing-floor.png)
+![缺底面：内部填满，射线停在包围盒底面](figures/python/missing-floor.png)
 
 缺 +X 侧墙。朝侧面的射线停在橙色辅助面上，没有进入右边的壳外。
 
-![缺侧墙：内部填满，射线停在包围盒侧面](figures/missing-wall.png)
+![缺侧墙：内部填满，射线停在包围盒侧面](figures/python/missing-wall.png)
 
-逐步看填充过程：用浏览器打开 `figures/occupancy-algorithm.html`。它不依赖安装，用一栋缺地面的小房子演示铺表面、沿外法线反方向逐格填充，以及从包围盒外泛洪找出漏掉的空腔。
-
-重新生成这两个图（需要 Pillow，不参与填充本身）：
-
-```bash
-python3 -m pip install pillow
-python3 -m beidou_vdb.viz
-```
-
-重新生成这两个 glTF：
-
-```bash
-python3 -m beidou_vdb.synthetic
-```
+逐步看填充过程：用浏览器打开 `figures/python/occupancy-algorithm.html`。它不依赖安装，用一栋缺地面的小房子演示铺表面、沿外法线反方向逐格填充，以及从包围盒外泛洪找出漏掉的空腔。

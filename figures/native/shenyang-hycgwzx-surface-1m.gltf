@@ -1,0 +1,28 @@
+{
+  "asset": {"version": "2.0", "generator": "beidou_vdb native scanline"},
+  "extensionsUsed": ["EXT_mesh_gpu_instancing"],
+  "extensionsRequired": ["EXT_mesh_gpu_instancing"],
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [
+    {"name": "surface", "mesh": 0, "extensions": {"EXT_mesh_gpu_instancing": {"attributes": {"TRANSLATION": 2}}}}
+  ],
+  "materials": [
+    {"name": "surface", "doubleSided": true, "pbrMetallicRoughness": {"baseColorFactor": [0.779999971, 0.74000001, 0.660000026, 1], "metallicFactor": 0.0, "roughnessFactor": 1.0}}
+  ],
+  "meshes": [
+    {"name": "surface", "primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4}]}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 8, "type": "VEC3", "min": [0, 0, 0], "max": [1, 1, 1]},
+    {"bufferView": 1, "componentType": 5123, "count": 36, "type": "SCALAR"},
+    {"bufferView": 2, "componentType": 5126, "count": 171420, "type": "VEC3", "min": [-109, -1, -78], "max": [110, 105, 72]}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 96, "target": 34962},
+    {"buffer": 0, "byteOffset": 96, "byteLength": 72, "target": 34963},
+    {"buffer": 0, "byteOffset": 168, "byteLength": 2057040, "target": 34962}
+  ],
+  "buffers": [{"uri": "shenyang-hycgwzx-surface-1m.bin", "byteLength": 2057208}],
+  "extras": {"source": "3dbuilding_ln_sy_hn_gwzx_hycgwzx.gltf", "voxel_size_m": 1.0, "occupied": 171420, "building_surface": 171420, "double_sided": 5340, "interior": 0, "representation": "instanced 1 m cubes, one material"}
+}
